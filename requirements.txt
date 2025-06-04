@@ -3,5 +3,4 @@ numpy
 datetime
 scipy
 statsmodels
-pydantic
-json
+pydantic=2.11.5
