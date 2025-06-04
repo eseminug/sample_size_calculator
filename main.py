@@ -280,30 +280,30 @@ def generate_experiment_sql(
 
 
 
-def login():
-    st.title("🔐 Login")
+# def login():
+#     st.title("🔐 Login")
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+#     username = st.text_input("Username")
+#     password = st.text_input("Password", type="password")
   
-    if st.button("Login"):
-        # if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
-        #     st.session_state.authenticated = True
-        #     st.session_state.username = username
-        #     st.success("Login successful!")
-        #     st.experimental_rerun()
-        if MB_CLIENT.login(username, password):
-            st.session_state.authenticated = True
-            st.session_state.username = username
-            st.session_state.password = password
-            st.success("Login successful!")
-            st.rerun()
-        else:
-            st.error("Invalid username or password")
+#     if st.button("Login"):
+#         # if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+#         #     st.session_state.authenticated = True
+#         #     st.session_state.username = username
+#         #     st.success("Login successful!")
+#         #     st.experimental_rerun()
+#         if MB_CLIENT.login(username, password):
+#             st.session_state.authenticated = True
+#             st.session_state.username = username
+#             st.session_state.password = password
+#             st.success("Login successful!")
+#             st.rerun()
+#         else:
+#             st.error("Invalid username or password")
 
 
 def main_app():
-    MB_CLIENT.login(st.session_state.username, st.session_state.password)
+    # MB_CLIENT.login(st.session_state.username, st.session_state.password)
     st.set_page_config(page_title="Sample Size Calculator for Experiments", layout="wide")
 
     st.title("Sample Size Calculator for Experiments")
@@ -393,9 +393,9 @@ def main_app():
             exclude_sources=exclude_sources,
             metric=metric
         )
-        print(sql_query)
-        query_result = MB_CLIENT.post("dataset", sql_query)
-        print(query_result)
+        # print(sql_query)
+        query_result = MB_CLIENT.post("dataset", sql_query, st.secrets.api_key)
+        # print(query_result)
         table_results_df = pd.DataFrame({})
         for source in query_result["source"].unique():
             temp_df = query_result.loc[query_result["source"] == source]
@@ -454,12 +454,13 @@ def main_app():
     
 
 
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# if 'authenticated' not in st.session_state:
+#     st.session_state.authenticated = False
 
-# App logic
-if st.session_state.authenticated:
-    main_app()
-else:
-    login()
+# # App logic
+# if st.session_state.authenticated:
+#     main_app()
+# else:
+#     login()
 
+main_app()

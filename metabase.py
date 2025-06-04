@@ -17,36 +17,35 @@ class Mb_Client(BaseModel):
     #     self.get_session()
 
 
-    def get_session(self) -> int:
-        credentials: dict = {
-            "username": self.username,
-            "password": self.password
-        }
+    # def get_session(self) -> int:
+    #     credentials: dict = {
+    #         "username": self.username,
+    #         "password": self.password
+    #     }
         
-        response = requests.post(
-            f"{self.url}/api/session",
-            json=credentials
-        )
-        if response.status_code != 200:
-            return response.status_code
+    #     response = requests.post(
+    #         f"{self.url}/api/session",
+    #         json=credentials
+    #     )
+    #     if response.status_code != 200:
+    #         return response.status_code
 
-        session_id = response.json()["id"]
-        setattr(self, "session_header", {"X-Metabase-Session": session_id})
-        return 200
+    #     session_id = response.json()["id"]
+    #     setattr(self, "session_header", {"X-Metabase-Session": session_id})
+    #     return 200
 
-    def login(self, username, password) -> bool:
-        """
-        Login to Metabase and set the session header.
-        """
-        self.username = username
-        self.password = password
-        return_code = self.get_session()
-        if return_code == 401:
-            return False
-        return True
+    # def login(self, username, password) -> bool:
+    #     """
+    #     Login to Metabase and set the session header.
+    #     """
+    #     self.username = username
+    #     self.password = password
+    #     return_code = self.get_session()
+    #     if return_code == 401:
+    #         return False
+    #     return True
 
-    def post(self, api_endpoint: str, query: str) -> dict:
-        print("USERNAME:", self.username, "PASSWORD:", self.password)
+    def post(self, api_endpoint: str, query: str, api_key) -> dict:
         payload: dict = {
             "database": 2,
             "type": "native",
@@ -59,6 +58,7 @@ class Mb_Client(BaseModel):
         post = requests.post(
             f'{self.url}/api/{api_endpoint}',
             headers = self.session_header | {
+                "X-API-KEY": "mb_nvzXRg42RlZrv3NAb6FQV8WIEMel3Dv7ASP3q3be5Rc=",
                 "Content-Type": "application/json;charset=utf-8"
             },
             json=payload
