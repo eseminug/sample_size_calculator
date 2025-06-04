@@ -14,14 +14,18 @@ from metabase import Mb_Client
 
 
 
-secrets: dict = dotenv_values(".env")
+# secrets: dict = dotenv_values(".env")
 
+# MB_CLIENT: Mb_Client = Mb_Client(
+#     url=f"{secrets['mb_url']}",
+#     username=secrets["username"],
+#     password=secrets["password"]
+# )
 MB_CLIENT: Mb_Client = Mb_Client(
-    url=f"{secrets['mb_url']}",
-    username=secrets["username"],
-    password=secrets["password"]
+  url="https://metabase.mu.se",
+  username="",
+  password=""
 )
-    
 
 def estimate_days(users_arr, sample_size):
     users_arr = ast.literal_eval(users_arr)
@@ -98,11 +102,12 @@ def generate_experiment_sql(
     # --- Подготовка условий прав ---
     def rights_conditions(label, rights, divisor=1):
         mapping = {
+            "none": 0,
             "trial": 1,
             "paid subscription": 2,
             "lifetime": 3,
             "expired trial": 4,
-            "expired paid subscription": 4
+            "expired paid subscription": 5
         }
         return [
             f"intDiv(rights, {int(divisor)}) % 10 = {mapping[r]}" for r in rights
@@ -241,7 +246,6 @@ def generate_experiment_sql(
                 WHERE
                   {source_filter}
                   AND unified_id > 0
-                  {rights_filter_sql}
                 GROUP BY unified_id, source
               )
 
@@ -278,146 +282,186 @@ def generate_experiment_sql(
 
 
 
+def login():
+    st.title("🔐 Login")
 
-st.set_page_config(page_title="Sample Size Calculator for Experiments", layout="wide")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+  
+    if st.button("Login"):
+        # if username in USER_CREDENTIALS and USER_CREDENTIALS[username] == password:
+        #     st.session_state.authenticated = True
+        #     st.session_state.username = username
+        #     st.success("Login successful!")
+        #     st.experimental_rerun()
+        if MB_CLIENT.login(username, password):
+            st.session_state.authenticated = True
+            st.session_state.username = username
+            st.session_state.password = password
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Invalid username or password")
 
-st.title("Sample Size Calculator for Experiments")
 
-# --- Sidebar for experiment parameters ---
-st.sidebar.header("Experiment Parameters")
-num_branches = st.sidebar.number_input("Number of experiment branches:", min_value=1, step=1, value=2)
-alpha = st.sidebar.number_input("Significance Level (alpha):", min_value=0.0001, max_value=1.0, value=0.05, step=0.01)
-power = st.sidebar.number_input("Statistical Power:", min_value=0.0001, max_value=1.0, value=0.8, step=0.01)
-expected_lift = st.sidebar.number_input("Expected Lift (%):", min_value=0.1, value=5.0, step=0.1)
+def main_app():
+    MB_CLIENT.login(st.session_state.username, st.session_state.password)
+    st.set_page_config(page_title="Sample Size Calculator for Experiments", layout="wide")
 
-# --- Two-column layout for filters ---
-col1, col2 = st.columns(2)
+    st.title("Sample Size Calculator for Experiments")
 
-with col1:
-    st.subheader("Experiment Setup")
-    # Metric
-    metric = st.selectbox("Metric:", ["conversion to access", "arpu"])
+    # --- Sidebar for experiment parameters ---
+    st.sidebar.header("Experiment Parameters")
+    num_branches = st.sidebar.number_input("Number of experiment branches:", min_value=1, step=1, value=2)
+    alpha = st.sidebar.number_input("Significance Level (alpha):", min_value=0.0001, max_value=1.0, value=0.05, step=0.01)
+    power = st.sidebar.number_input("Statistical Power:", min_value=0.0001, max_value=1.0, value=0.8, step=0.01)
+    expected_lift = st.sidebar.number_input("Expected Lift (%):", min_value=0.1, value=10.0, step=0.1)
 
-    # Platform selection
-    platforms = st.multiselect(
-        "Select Platforms:",
-        options=["UGT_IOS", "UG_IOS", "UGT_ANDROID", "UG_ANDROID", "UG_WEB"],
-    )
+    # --- Two-column layout for filters ---
+    col1, col2 = st.columns(2)
 
-    # Activation event
-    activation_event = st.text_input("Activation Event (leave empty if not needed):")
+    with col1:
+        st.subheader("Experiment Setup")
+        # Metric
+        metric = st.selectbox("Metric:", ["conversion to access", "arpu"])
 
-    # Event parameters
-    event_params = st.text_input("Event Parameters (separate by semicolon ';'):")
-    exclude_event_params = st.checkbox("Exclude selected event parameters")
-
-    # Subscription sources
-    subscription_sources = st.text_input("Subscription Sources (separate by semicolon ';'):")
-    exclude_sources = st.checkbox("Exclude selected sources")
-
-with col2:
-    # Date range
-    st.subheader("Data Range and Rights")
-    date_range = st.date_input(
-        "Date Range (recommended: no later than two weeks ago):",
-        help="Recommended to choose a range ending no later than 2 weeks ago",
-        value=[]
-    )
-
-    # Rights filters
-    def multiselect_rights(label):
-        return st.multiselect(
-            f"{label} Rights:",
-            options=[
-                "trial",
-                "paid subscription",
-                "lifetime",
-                "expired trial",
-                "expired paid subscription"
-            ]
+        # Platform selection
+        platforms = st.multiselect(
+            "Select Platforms:",
+            options=["UGT_IOS", "UG_IOS", "UGT_ANDROID", "UG_ANDROID", "UG_WEB"],
         )
 
-    pro_rights = multiselect_rights("Pro")
-    edu_rights = multiselect_rights("Edu")
-    sing_rights = multiselect_rights("Sing")
-    practice_rights = multiselect_rights("Practice")
-    books_rights = multiselect_rights("Books")
+        # Activation event
+        activation_event = st.text_input("Activation Event (leave empty if not needed):")
 
-# --- Calculate button and output ---
-if st.button("Calculate"):
-    sql_query = generate_experiment_sql(
-        platforms=platforms,
-        pro_rights=pro_rights,
-        edu_rights=edu_rights,
-        sing_rights=sing_rights,
-        practice_rights=practice_rights,
-        books_rights=books_rights,
-        start_date=date_range[0] if date_range else None,
-        end_date=date_range[1] if date_range else None,
-        activation_event=activation_event,
-        event_params=event_params,
-        exclude_event_params=exclude_event_params,
-        subscription_sources=subscription_sources,
-        exclude_sources=exclude_sources,
-        metric=metric
-    )
-    # print(sql_query)
-    query_result = MB_CLIENT.post("dataset", sql_query)
-    # print(query_result)
-    table_results_df = pd.DataFrame({})
-    for source in query_result["source"].unique():
-        temp_df = query_result.loc[query_result["source"] == source]
-        stat_res = calc_stats(
-            mean_0=temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0],
-            mean_1=temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0] * (1 + expected_lift / 100),
-            var_0=temp_df["variance"].iloc[0],
-            var_1=temp_df["variance"].iloc[0],
-            len_0=temp_df["denominator"].iloc[0],
-            len_1=temp_df["denominator"].iloc[0],
-            alpha=alpha,
-            required_power=power
+        # Event parameters
+        event_params = st.text_input("Event Parameters (separate by semicolon ';'):")
+        exclude_event_params = st.checkbox("Exclude selected event parameters")
+
+        # Subscription sources
+        subscription_sources = st.text_input("Subscription Sources (separate by semicolon ';'):")
+        exclude_sources = st.checkbox("Exclude selected sources")
+
+    with col2:
+        # Date range
+        st.subheader("Data Range and Rights")
+        date_range = st.date_input(
+            "Date Range (recommended: no later than two weeks ago):",
+            help="Recommended to choose a range ending no later than 2 weeks ago",
+            value=[]
         )
-        # print(stat_res)
-        # print(temp_df["users_arr"].iloc[0])
-        # print(type(temp_df["users_arr"].iloc[0]))
-        # print(stat_res["sample_size"] * num_branches)
-        _, calc_days = estimate_days(temp_df["users_arr"].iloc[0], stat_res["sample_size"] * num_branches)
-        # print(calc_days)
-        if metric == "conversion to access":
-            prefix = ""
-            suffix = "%"
-            metric_value = temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0] * 100
-        elif metric == "arpu":
-            prefix = "$"
-            suffix = ""
-            metric_value = temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0]
-        table_results_df = pd.concat([
-            table_results_df,
-            pd.DataFrame({
-                "Days": [calc_days],
-                "Total Sample Size": [int(stat_res["sample_size"] * num_branches)],
-                metric: [f"{prefix}{metric_value:.2f}{suffix}"],
-                "Lift, %": [f"{expected_lift}%"],
-                "Effect": f'{stat_res["cohen_d"]:.3f}'
-                # "Expected CI": [f"[{stat_res['ci'][0][0]:.2%}; {stat_res['ci'][0][1]:.2%}]"]
-            }, index=[source])
-        ])
-    
-    # Dummy logic — replace with real calculation
-    # days = 14
-    # total_sample = 10000
-    # effect = f"{expected_lift}%"
-    # ci = "[-2.3%; +7.8%]"
 
-    # result = pd.DataFrame({
-    #     "Days": [days] * len(platforms),
-    #     "Total Sample Size": [total_sample] * len(platforms),
-    #     "Effect": [effect] * len(platforms),
-    #     "Expected CI": [ci] * len(platforms),
-    # }, index=platforms)
+        # Rights filters
+        def multiselect_rights(label):
+            return st.multiselect(
+                f"{label} Rights:",
+                options=[
+                    "none",
+                    "trial",
+                    "paid subscription",
+                    "lifetime",
+                    "expired trial",
+                    "expired paid subscription"
+                ] if label == "Pro" else [
+                    "none",
+                    "trial",
+                    "paid subscription",
+                    "expired trial",
+                    "expired paid subscription"
+                ],
+            )
 
-    st.markdown("### Result Table")
-    # st.dataframe(result.style.format(precision=2), use_container_width=True)
-    st.dataframe(table_results_df.style.format(precision=2), use_container_width=True)
+        pro_rights = multiselect_rights("Pro")
+        edu_rights = multiselect_rights("Edu")
+        sing_rights = multiselect_rights("Sing")
+        practice_rights = multiselect_rights("Practice")
+        books_rights = multiselect_rights("Books")
+
+    # --- Calculate button and output ---
+    if st.button("Calculate"):
+        sql_query = generate_experiment_sql(
+            platforms=platforms,
+            pro_rights=pro_rights,
+            edu_rights=edu_rights,
+            sing_rights=sing_rights,
+            practice_rights=practice_rights,
+            books_rights=books_rights,
+            start_date=date_range[0] if date_range else None,
+            end_date=date_range[1] if date_range else None,
+            activation_event=activation_event,
+            event_params=event_params,
+            exclude_event_params=exclude_event_params,
+            subscription_sources=subscription_sources,
+            exclude_sources=exclude_sources,
+            metric=metric
+        )
+        print(sql_query)
+        query_result = MB_CLIENT.post("dataset", sql_query)
+        print(query_result)
+        table_results_df = pd.DataFrame({})
+        for source in query_result["source"].unique():
+            temp_df = query_result.loc[query_result["source"] == source]
+            stat_res = calc_stats(
+                mean_0=temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0],
+                mean_1=temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0] * (1 + expected_lift / 100),
+                var_0=temp_df["variance"].iloc[0],
+                var_1=temp_df["variance"].iloc[0],
+                len_0=temp_df["denominator"].iloc[0],
+                len_1=temp_df["denominator"].iloc[0],
+                alpha=alpha,
+                required_power=power
+            )
+            # print(stat_res)
+            # print(temp_df["users_arr"].iloc[0])
+            # print(type(temp_df["users_arr"].iloc[0]))
+            # print(stat_res["sample_size"] * num_branches)
+            _, calc_days = estimate_days(temp_df["users_arr"].iloc[0], stat_res["sample_size"] * num_branches)
+            # print(calc_days)
+            if metric == "conversion to access":
+                prefix = ""
+                suffix = "%"
+                metric_value = temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0] * 100
+            elif metric == "arpu":
+                prefix = "$"
+                suffix = ""
+                metric_value = temp_df["numerator"].iloc[0] / temp_df["denominator"].iloc[0]
+            table_results_df = pd.concat([
+                table_results_df,
+                pd.DataFrame({
+                    "Days": [calc_days],
+                    "Total Sample Size": [int(stat_res["sample_size"] * num_branches)],
+                    metric: [f"{prefix}{metric_value:.2f}{suffix}"],
+                    "Lift, %": [f"{expected_lift}%"],
+                    "Effect": f'{stat_res["cohen_d"]:.3f}'
+                    # "Expected CI": [f"[{stat_res['ci'][0][0]:.2%}; {stat_res['ci'][0][1]:.2%}]"]
+                }, index=[source])
+            ])
+        
+        # Dummy logic — replace with real calculation
+        # days = 14
+        # total_sample = 10000
+        # effect = f"{expected_lift}%"
+        # ci = "[-2.3%; +7.8%]"
+
+        # result = pd.DataFrame({
+        #     "Days": [days] * len(platforms),
+        #     "Total Sample Size": [total_sample] * len(platforms),
+        #     "Effect": [effect] * len(platforms),
+        #     "Expected CI": [ci] * len(platforms),
+        # }, index=platforms)
+
+        st.markdown("### Result Table")
+        # st.dataframe(result.style.format(precision=2), use_container_width=True)
+        st.dataframe(table_results_df.style.format(precision=2), use_container_width=True)
     
+
+
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+# App logic
+if st.session_state.authenticated:
+    main_app()
+else:
+    login()
 
