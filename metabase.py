@@ -58,7 +58,7 @@ class Mb_Client(BaseModel):
         post = requests.post(
             f'{self.url}/api/{api_endpoint}',
             headers = self.session_header | {
-                "X-API-KEY": "mb_nvzXRg42RlZrv3NAb6FQV8WIEMel3Dv7ASP3q3be5Rc=",
+                "X-API-KEY": api_key,
                 "Content-Type": "application/json;charset=utf-8"
             },
             json=payload
